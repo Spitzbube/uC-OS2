@@ -77,7 +77,12 @@ typedef uint32_t INT32U;
 #endif
 
 #define  OS_TASK_STAT_PRIO  (OS_LOWEST_PRIO - 1)        /* Statistic task priority                     */
+
+#endif
+
 #define  OS_TASK_IDLE_PRIO  (OS_LOWEST_PRIO)            /* IDLE      task priority                     */
+
+#if 0
 
 #if OS_LOWEST_PRIO <= 63
 #define  OS_EVENT_TBL_SIZE ((OS_LOWEST_PRIO) / 8 + 1)   /* Size of event table                         */
@@ -87,7 +92,10 @@ typedef uint32_t INT32U;
 #define  OS_RDY_TBL_SIZE   ((OS_LOWEST_PRIO) / 16 + 1)  /* Size of ready table                         */
 #endif
 
+#endif
+
 #define  OS_TASK_IDLE_ID          65535u                /* ID numbers for Idle, Stat and Timer tasks   */
+#if 0
 #define  OS_TASK_STAT_ID          65534u
 #define  OS_TASK_TMR_ID           65533u
 
@@ -542,8 +550,6 @@ typedef struct
 
 } OS_SEM_DATA;
 
-#if 0
-
 /*
 *********************************************************************************************************
 *                                            TASK STACK DATA
@@ -564,7 +570,9 @@ typedef struct os_stk_data {
 *********************************************************************************************************
 */
 
-typedef struct os_tcb {
+typedef struct os_tcb
+#if 0
+{
     OS_STK          *OSTCBStkPtr;      /* Pointer to current top of stack                              */
 
 #if OS_TASK_CREATE_EXT_EN > 0
@@ -623,9 +631,9 @@ typedef struct os_tcb {
 #if OS_TASK_NAME_SIZE > 1
     INT8U            OSTCBTaskName[OS_TASK_NAME_SIZE];
 #endif
-} OS_TCB;
-
+}
 #endif
+OS_TCB;
 
 typedef struct RTOS_tTCB
 {

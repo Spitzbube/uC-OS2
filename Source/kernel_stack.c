@@ -6,25 +6,27 @@ typedef void (*ISR)(void);
 extern ISR intr_arFuncs[32];
 
 int Data_234942a8 = 0; //234942a8 +0
-void* Data_234942ac; //234942ac +4
+void* OS_CPU_ExceptStkBase; //234942ac +4
 int Data_234942b0; //234942b0 +8
 
-extern void* Data_23487950; //23487950
+extern void* OS_CPU_ExceptStk; //23487950
 
 
 /* 23464598 - todo */
 void OSInitHookBegin()
 {
-	uint32_t i;
-	uint32_t* r0 = Data_23487950;
+	uint32_t size;
+	uint32_t* pstk;
 
-	for (i = 0x1ff; i > 0; i--)
+	pstk = OS_CPU_ExceptStk;
+	size = 0x1ff;
+	while (size--)
 	{
-		*r0++ = 0;
+		*pstk++ = 0;
 	}
 
-	Data_234942ac = Data_23487950;
-	*(((uint32_t*)Data_23487950) - 0x200) = 0x12345678;
+	OS_CPU_ExceptStkBase = OS_CPU_ExceptStk;
+	*(((uint32_t*)OS_CPU_ExceptStk) - 0x200) = 0x12345678;
 }
 
 
@@ -38,7 +40,7 @@ void OSInitHookEnd()
 
 
 /* 234645d0 - complete */
-void sub_234645d0()
+void OSTaskCreateHook()
 {
 #if 0
 	((volatile uint32_t*)0xc2000000)[0] = '2';
@@ -80,7 +82,7 @@ void sub_23464610()
 
 
 /* 23464614 - todo */
-uint32_t rtos_create_stack_frame(void (*func)(int), int b, uint32_t* stack, int d)
+uint32_t OSTaskStkInit(void (*func)(int), int b, uint32_t* stack, int d)
 {
 	*stack-- = (unsigned int)func & ~1;
 	*stack-- = 0x14141414;
@@ -104,7 +106,7 @@ uint32_t rtos_create_stack_frame(void (*func)(int), int b, uint32_t* stack, int 
 
 
 /* 234646a0 - complete */
-void sub_234646a0()
+void OSTaskSwHook()
 {
 #if 0
 	((volatile uint32_t*)0xc2000000)[0] = '4';
@@ -113,7 +115,7 @@ void sub_234646a0()
 
 
 /* 234646a4 - complete */
-void sub_234646a4()
+void OSTimeTickHook()
 {
 #if 0
 	((volatile uint32_t*)0xc2000000)[0] = '5';
@@ -122,9 +124,9 @@ void sub_234646a4()
 
 
 /* 234646a8 - todo */
-void rtos_handle_irq(uint32_t irqNr)
+void OS_CPU_ExceptHndlr(uint32_t irqNr)
 {
-	uint32_t r5 = sub_2341b390();
+	uint32_t r5 = intr_get_vic_address();
 
 #if 0
 	((volatile uint32_t*)0xc2000000)[0] = 'i';
@@ -246,15 +248,15 @@ void rtos_handle_irq(uint32_t irqNr)
 		{
 		void (*pFunc)(void) = intr_arFuncs[(irqNr >> 8) & 0xff];
 
-		sub_234878a8();
+		OS_CPU_SR_INT_En();
 
 		if (pFunc) pFunc();
 		}
 
-		sub_234878b8();
+		OS_CPU_SR_INT_Dis();
 	}
 	//loc_234646ec
-	loc_2341b39c(r5);
+	intr_set_vic_address(r5);
 }
 
 

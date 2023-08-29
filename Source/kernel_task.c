@@ -4,7 +4,7 @@
 
 
 /* 23439064 - todo */
-char rtos_thread_create(void (*func)(int), int b,
+char OSTaskCreateExt(void (*func)(int), int b,
     int* stack, unsigned int prio/*r3/r4*/,
     int e,
     int* f,
@@ -35,7 +35,7 @@ char rtos_thread_create(void (*func)(int), int b,
 				memset(f, 0, g * 4);
 			}
 
-			stack_frame = rtos_create_stack_frame(func, b, stack, i);
+			stack_frame = OSTaskStkInit(func, b, stack, i);
 			res = rtos_create_tcb(prio, stack_frame, f, e, g, h, i);
 
 			if (res == 0)
@@ -44,7 +44,7 @@ char rtos_thread_create(void (*func)(int), int b,
 				OSTaskCtr++;
 				FAMOS_LeaveCriticalSection(cpu_status);
 
-				if (rtos_fScheduling == 1)
+				if (OSRunning == 1)
 				{
 					OS_Sched();
 				}

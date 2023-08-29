@@ -31,23 +31,23 @@ const uint8_t OSUnMapTbl[] = //23489cc8
 uint8_t OSIntNesting; //23492c00 +0
 uint8_t bData_23492c01; //23492c01 +1
 uint8_t OSLockNesting; //23492c02 +2 //3a863a
-uint8_t rtos_bCurrentPrio; //23492c03 +3
-uint8_t rtos_bNextPrio; //23492c04 +4
+uint8_t OSPrioCur; //23492c03 +3
+uint8_t OSPrioHighRdy; //23492c04 +4
 uint8_t OSRdyGrp; //23492c05 +5 //bData_3a863d
-uint8_t rtos_fScheduling; //23492c06 +6
+uint8_t OSRunning; //23492c06 +6
 uint8_t OSTaskCtr; //23492c07 +7 //bData_3a8647
-int Data_23492c08; //23492c08 +8 //Data_3a7f74
+int OSCtxSwCtr; //23492c08 +8 //Data_3a7f74
 OS_EVENT* OSEventFreeList; //23492c0c +0xc
 int OSIdleCtr; //23492c10 +0x10
 RTOS_tTCB* OSTCBCur; //23492c14 +0x14
 RTOS_tTCB* rtos_pTCBFree; //23492c18 +0x18
-RTOS_tTCB* rtos_pNextTask; //23492c1c +0x1c
+RTOS_tTCB* OSTCBHighRdy; //23492c1c +0x1c
 RTOS_tTCB* OSTCBList; //23492c20 +0x20
-int Data_23492c24; //23492c24 +0x24
+int OSTime; //23492c24 +0x24
 uint8_t OSRdyTbl[8]; //23492c28 +0x28
 OS_Q* OSQFreeList; //23492c34 +0x34
 
-OS_EVENT rtos_arSema[200]; //235f7b3c +200*20 = 235F8ADC
+OS_EVENT OSEventTbl[200]; //235f7b3c +200*20 = 235F8ADC
 int OSTaskIdleStk[OS_TASK_IDLE_STK_SIZE]; //235f8adc +0x400*4 = 235F9AD8+4
 //int Data_237814d8; //237814d8
 RTOS_tTCB* rtos_arThread[64]; //235f9adc +64*4 = 235F9BDC
@@ -82,11 +82,11 @@ static void rtos_thread_init(void)
 }
 
 
-static void rtos_sema_init(void)
+static void OS_InitEventList(void)
 {
   unsigned short i;
 
-  OS_EVENT* current = rtos_arSema;
+  OS_EVENT* current = OSEventTbl;
   OS_EVENT* next = current + 1;
 
   for (i = 0; i < 199; i++, current++, next++)
@@ -98,7 +98,7 @@ static void rtos_sema_init(void)
   current->OSEventType = 0;
   current->OSEventPtr = 0;
 
-  OSEventFreeList = rtos_arSema;
+  OSEventFreeList = OSEventTbl;
 }
 
 
@@ -122,52 +122,71 @@ void OS_TaskIdle()
 }
 
 
-/* 234480b8 - todo */
-void rtos_init()
+static  void  OS_InitRdyList (void)
 {
-	uint16_t i;
-	uint8_t* r1;
+    INT16U  i;
 
+
+    OSRdyGrp      = 0u;                                    /* Clear the ready list                     */
+
+    INT8U* r1 = &OSRdyTbl[0];
+
+    for (i = 0u; i < 8/*OS_RDY_TBL_SIZE*/; i++) {
+#if 0
+        OSRdyTbl[i] = 0u;
+#else
+        *r1++ = 0u;
+#endif
+    }
+
+    OSPrioCur     = 0u;
+    OSPrioHighRdy = 0u;
+
+    OSTCBHighRdy  = /*(OS_TCB *)*/0;
+    OSTCBCur      = /*(OS_TCB *)*/0;
+}
+
+
+/* 234480b8 - todo */
+void OSInit()
+{
 	OSInitHookBegin();
 
-	Data_23492c24 = 0; //+0x24
+	OSTime = 0; //+0x24
 	OSIntNesting = 0; //+0
 	OSLockNesting = 0; //+2
 	OSTaskCtr = 0; //+7
-	rtos_fScheduling = 0; //+6
-	Data_23492c08 = 0; //+8
+	OSRunning = 0; //+6
+	OSCtxSwCtr = 0; //+8
 	OSIdleCtr = 0; //+0x10
-	OSRdyGrp = 0; //+5
 
-	r1 = &OSRdyTbl[0];
-	for (i = 0; i < 8; i++)
-	{
-		//loc_234387dc
-		*r1++ = 0;
-	}
+	OS_InitRdyList();
 
-	rtos_bCurrentPrio = 0; //+3
-	rtos_bNextPrio = 0; //+4
-	rtos_pNextTask = 0; //+0x1c
-	OSTCBCur = 0; //+0x14
 	OSTCBList = 0; //+0x20
 
 	rtos_thread_init();
-	rtos_sema_init();
+	OS_InitEventList();
 	OS_MemInit();
 	OS_QInit();
 
-	rtos_thread_create(OS_TaskIdle, 0, &OSTaskIdleStk[OS_TASK_IDLE_STK_SIZE-1],
-			63/*THREAD_PRIO_IDLE*//*(7 << 3) | 7*/, 0xffff, OSTaskIdleStk, OS_TASK_IDLE_STK_SIZE, 0, 0x03);
+	OSTaskCreateExt(OS_TaskIdle,
+			0,
+			&OSTaskIdleStk[OS_TASK_IDLE_STK_SIZE-1],
+			OS_TASK_IDLE_PRIO,
+			OS_TASK_IDLE_ID,
+			OSTaskIdleStk,
+			OS_TASK_IDLE_STK_SIZE,
+			0,
+			0x03);
 
 	OSInitHookEnd();
 }
 
 
 /* 234388f8 - todo */
-void rtos_on_irq_exit()
+void OSIntExit()
 {
-	if (rtos_fScheduling == 1)
+	if (OSRunning == 1)
 	{
 		uint32_t cpu_status = FAMOS_EnterCriticalSection();
 
@@ -180,15 +199,15 @@ void rtos_on_irq_exit()
 		{
 			bData_23492c01 = OSUnMapTbl[OSRdyGrp];
 
-		    rtos_bNextPrio = OSUnMapTbl[OSRdyTbl[bData_23492c01]] + (bData_23492c01 * 8);
+		    OSPrioHighRdy = OSUnMapTbl[OSRdyTbl[bData_23492c01]] + (bData_23492c01 * 8);
 
-		    if (rtos_bNextPrio != rtos_bCurrentPrio)
+		    if (OSPrioHighRdy != OSPrioCur)
 		    {
-		    	rtos_pNextTask = rtos_arThread[rtos_bNextPrio];
+		    	OSTCBHighRdy = rtos_arThread[OSPrioHighRdy];
 
-		    	Data_23492c08++;
+		    	OSCtxSwCtr++;
 
-		    	sub_23487700();
+		    	OSIntCtxSw();
 		    }
 		}
 		//loc_23438984
@@ -206,13 +225,13 @@ void OS_Sched()
 	{
 		int r0 = OSUnMapTbl[OSRdyGrp];
 
-		rtos_bNextPrio = (r0 * 8) + OSUnMapTbl[OSRdyTbl[r0]];
+		OSPrioHighRdy = (r0 * 8) + OSUnMapTbl[OSRdyTbl[r0]];
 
-		if (rtos_bNextPrio != rtos_bCurrentPrio)
+		if (OSPrioHighRdy != OSPrioCur)
 		{
-			rtos_pNextTask = rtos_arThread[rtos_bNextPrio];
-			Data_23492c08++;
-			rtosSwitchContextFromEvent();
+			OSTCBHighRdy = rtos_arThread[OSPrioHighRdy];
+			OSCtxSwCtr++;
+			OSCtxSw();
 		}
 	}
 
@@ -223,17 +242,17 @@ void OS_Sched()
 /* 23438a88 - todo */
 void rtos_start()
 {
-	if (rtos_fScheduling == 0)
+	if (OSRunning == 0)
 	{
 	    int r1 = OSUnMapTbl[OSRdyGrp];
 
-	    rtos_bNextPrio = OSUnMapTbl[OSRdyTbl[r1]] + (r1 * 8);
-	    rtos_bCurrentPrio = rtos_bNextPrio;
+	    OSPrioHighRdy = OSUnMapTbl[OSRdyTbl[r1]] + (r1 * 8);
+	    OSPrioCur = OSPrioHighRdy;
 
-	    rtos_pNextTask = rtos_arThread[rtos_bNextPrio];
-	    OSTCBCur = rtos_pNextTask;
+	    OSTCBHighRdy = rtos_arThread[OSPrioHighRdy];
+	    OSTCBCur = OSTCBHighRdy;
 
-	    rtosStartContextFirst();
+	    OSStartHighRdy();
 	}
 }
 
@@ -244,14 +263,14 @@ void OSTimeTick()
 	RTOS_tTCB* pTask;
 	uint32_t r0;
 
-	sub_234646a4();
+	OSTimeTickHook();
 	r0 = FAMOS_EnterCriticalSection();
 
-	Data_23492c24++;
+	OSTime++;
 
 	FAMOS_LeaveCriticalSection(r0);
 
-	if (rtos_fScheduling == 1)
+	if (OSRunning == 1)
 	{
 		//->loc_23438b70
 		for (pTask = OSTCBList; pTask->prio != 63; )
@@ -429,7 +448,7 @@ int rtos_create_tcb(int prio/*r5*/, int stack_frame/*r6*/, int* f/*r8*/,
 	    tcb->OSTCBMsg = 0;
 
 	    sub_23464610(tcb);
-	    sub_234645d0(tcb);
+	    OSTaskCreateHook(tcb);
 
 		cpu_status = FAMOS_EnterCriticalSection();
 
